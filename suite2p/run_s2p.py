@@ -140,10 +140,13 @@ def run_s2p(ops={},db={}):
             # except for registration results
             ops1[i]['xrange'] = op['xrange']
             ops1[i]['yrange'] = op['yrange']
-
     else:
         files_found_flag = False
         flag_binreg = False
+
+    if not flag_binreg and ops['keep_movie_raw']:
+        print("NOTE: without registration keep_raw_movie forced to be False")
+        ops['keep_movie_raw'] = False
 
     # if not set up files and copy tiffs/h5py to binary
     if not files_found_flag:
