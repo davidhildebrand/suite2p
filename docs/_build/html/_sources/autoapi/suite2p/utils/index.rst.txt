@@ -7,10 +7,14 @@
 Module Contents
 ---------------
 
-.. function:: tic()
+.. function:: boundary(ypix, xpix)
+
+   returns pixels of mask that are on the exterior of the mask
 
 
-.. function:: toc(i0)
+.. function:: circle(med, r)
+
+   returns pixels of circle with radius 1.25x radius of cell (r)
 
 
 .. function:: fitMVGaus(y, x, lam, thres=2.5)
@@ -33,74 +37,37 @@ Module Contents
 
 .. function:: enhanced_mean_image(ops)
 
-   computes enhanced mean image for GUI
+   computes enhanced mean image and adds it to ops
 
+   Median filters ops['meanImg'] with 4*diameter in 2D and subtracts and
+   divides by this median-filtered image to return a high-pass filtered
+   image ops['meanImgE']
 
-.. function:: init_ops(ops)
+   :param ops: uses 'meanImg', 'aspect', 'diameter', 'yrange' and 'xrange'
+   :type ops: dictionary
 
-
-.. function:: list_h5(ops)
-
-
-.. function:: find_files_open_binaries(ops1, ish5)
-
-   find tiffs or h5 files, and open binaries to write to
-   inputs ops1 (list over planes), ish5 (whether or not h5)
-   returns ops1, fs (filelist), reg_file, reg_file_chan2
-
-
-.. function:: h5py_to_binary(ops)
-
-
-.. function:: open_tiff(file, sktiff)
-
-   opens tiff with either ScanImageTiffReader or skimage
-   returns tiff and its length
-
-
-.. function:: choose_tiff_reader(fs0, ops)
-
-
-.. function:: tiff_to_binary(ops)
-
-   converts tiff to *.bin file
-
-
-.. function:: split_multiops(ops1)
-
-
-.. function:: mesoscan_to_binary(ops)
-
-
-.. function:: list_tifs(froot, look_one_level_down)
-
-   list of tiffs in folder froot + one level down maybe
-
-
-.. function:: get_tif_list(ops)
-
-   make list of tiffs to process
-   if ops['subfolders'], then all tiffs ops['data_path'][0] / ops['subfolders'] / *.tif
-   if ops['look_one_level_down'], then all tiffs in all folders + one level down
-   if ops['tiff_list'], then ops['data_path'][0] / ops['tiff_list'] ONLY
+   :returns: **ops** -- 'meanImgE' field added
+   :rtype: dictionary
 
 
 .. function:: sub2ind(array_shape, rows, cols)
 
 
-.. function:: combined(ops1)
-
-   Combines all the entries in ops1 into a single result file.
-   Multi-plane recordings are arranged to best tile a square.
-   Multi-roi recordings are arranged by their dx,dy physical localization.
-
-
-.. function:: make_blocks(ops)
-
-
-.. function:: sample_frames(ops, ix, reg_file)
+.. function:: sample_frames(ops, ix, reg_file, crop=True)
 
    get frames ix from reg_file
-   frames are cropped by ops['yrange'] and ops['xrange']
+       frames are cropped by ops['yrange'] and ops['xrange']
+
+   :param ops: requires 'badframes', 'yrange', 'xrange', 'Ly', 'Lx'
+   :type ops: dict
+   :param ix: frames to take
+   :type ix: int, array
+   :param reg_file: location of binary file to read (frames x Ly x Lx)
+   :type reg_file: str
+   :param crop: whether or not to crop by 'yrange' and 'xrange'
+   :type crop: bool
+
+   :returns: **mov** -- frames x Ly x Lx
+   :rtype: int16, array
 
 
