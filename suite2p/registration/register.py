@@ -74,7 +74,7 @@ def compute_motion_and_shift(data, refAndMasks, ops):
 
     """
 
-    if ops['bidiphase']!=0:
+    if ops['bidiphase']!=0 and not ops['bidi_corrected']:
         bidiphase.shift(data, ops['bidiphase'])
     nr=False
     yxnr = []
@@ -118,10 +118,14 @@ def compute_crop(ops):
     ops['badframes'] = np.logical_or(px > ops['th_badframes'] * 100, ops['badframes'])
     ops['badframes'] = np.logical_or(abs(ops['xoff']) > (ops['maxregshift'] * ops['Lx'] * 0.95), ops['badframes'])
     ops['badframes'] = np.logical_or(abs(ops['yoff']) > (ops['maxregshift'] * ops['Ly'] * 0.95), ops['badframes'])
-    ymin = np.maximum(0, np.ceil(np.amax(ops['yoff'][np.logical_not(ops['badframes'])])))
-    ymax = ops['Ly'] + np.minimum(0, np.floor(np.amin(ops['yoff'])))
-    xmin = np.maximum(0, np.ceil(np.amax(ops['xoff'][np.logical_not(ops['badframes'])])))
-    xmax = ops['Lx'] + np.minimum(0, np.floor(np.amin(ops['xoff'])))
+    ymin = np.ceil(np.abs(ops['yoff'][np.logical_not(ops['badframes'])]).max())
+    ymax = ops['Ly'] - ymin 
+    xmin = np.ceil(np.abs(ops['xoff'][np.logical_not(ops['badframes'])]).max())
+    xmax = ops['Lx'] - xmin
+    # ymin = np.maximum(0, np.ceil(np.amax(ops['yoff'][np.logical_not(ops['badframes'])])))
+    # ymax = ops['Ly'] + np.minimum(0, np.floor(np.amin(ops['yoff'])))
+    # xmin = np.maximum(0, np.ceil(np.amax(ops['xoff'][np.logical_not(ops['badframes'])])))
+    # xmax = ops['Lx'] + np.minimum(0, np.floor(np.amin(ops['xoff'])))
     ops['yrange'] = [int(ymin), int(ymax)]
     ops['xrange'] = [int(xmin), int(xmax)]
     return ops
@@ -158,7 +162,11 @@ def register_binary_to_ref(ops, refImg, reg_file_align, raw_file_align):
     Ly = ops['Ly']
     Lx = ops['Lx']
     nbytesread = 2 * Ly * Lx * nbatch
-    raw = 'keep_movie_raw' in ops and ops['keep_movie_raw'] and 'raw_file' in ops and os.path.isfile(ops['raw_file'])
+    if len(raw_file_align) > 0:
+        raw = True
+    else:
+        raw = False
+        #raw = 'keep_movie_raw' in ops and ops['keep_movie_raw'] and 'raw_file' in ops and os.path.isfile(ops['raw_file'])
     if raw:
         reg_file_align = open(reg_file_align, 'wb')
         raw_file_align = open(raw_file_align, 'rb')
@@ -251,7 +259,7 @@ def apply_shifts(data, ops, ymax, xmax, ymax1, xmax1):
 
 
     """
-    if ops['bidiphase']!=0:
+    if ops['bidiphase']!=0  and not ops['bidi_corrected']:
         bidiphase.shift(data, ops['bidiphase'])
     rigid.shift_data(data, ymax, xmax)
     if ops['nonrigid']==True:
@@ -264,16 +272,17 @@ def apply_shifts_to_binary(ops, offsets, reg_file_alt, raw_file_alt):
     Ly = ops['Ly']
     Lx = ops['Lx']
     nbytesread = 2 * Ly * Lx * nbatch
-    raw = 'keep_movie_raw' in ops and ops['keep_movie_raw']
     ix = 0
     meanImg = np.zeros((Ly, Lx))
     k=0
     t0 = time.time()
-    if raw:
+    if len(raw_file_alt) > 0:
         reg_file_alt = open(reg_file_alt, 'wb')
         raw_file_alt = open(raw_file_alt, 'rb')
+        raw = True
     else:
         reg_file_alt = open(reg_file_alt, 'r+b')
+        raw = False
     while True:
         if raw:
             buff = raw_file_alt.read(nbytesread)
@@ -320,7 +329,7 @@ def apply_shifts_to_binary(ops, offsets, reg_file_alt, raw_file_alt):
         raw_file_alt.close()
     return ops
 
-def register_binary(ops, refImg=None):
+def register_binary(ops, refImg=None, raw=True):
     ''' registration of binary files '''
     # if ops is a list of dictionaries, each will be registered separately
     if (type(ops) is list) or (type(ops) is np.ndarray):
@@ -343,18 +352,24 @@ def register_binary(ops, refImg=None):
     if ops['nframes']<200:
         print('WARNING: number of frames is below 200, unpredictable behaviors may occur')
 
+    # get binary file paths
+    if raw:
+        raw = ('keep_movie_raw' in ops and ops['keep_movie_raw'] and
+                'raw_file' in ops and os.path.isfile(ops['raw_file']))
+    reg_file_align, reg_file_alt, raw_file_align, raw_file_alt = utils.bin_paths(ops, raw)
+
     # compute reference image
     if refImg is not None:
         print('NOTE: user reference frame given')
     else:
         t0 = time.time()
-        refImg = reference.compute_reference_image(ops)
+        if raw:
+            refImg, bidi = reference.compute_reference_image(ops, raw_file_align)
+        else:
+            refImg, bidi = reference.compute_reference_image(ops, reg_file_align)
+        ops['bidiphase'] = bidi
         print('Reference frame, %0.2f sec.'%(time.time()-t0))
     ops['refImg'] = refImg
-
-    # get binary file paths
-    raw = 'keep_movie_raw' in ops and ops['keep_movie_raw'] and 'raw_file' in ops and os.path.isfile(ops['raw_file'])
-    reg_file_align, reg_file_alt, raw_file_align, raw_file_alt = utils.bin_paths(ops, raw)
 
     k = 0
     nfr = 0
@@ -365,18 +380,29 @@ def register_binary(ops, refImg=None):
     if ops['nchannels']>1:
         ops = apply_shifts_to_binary(ops, offsets, reg_file_alt, raw_file_alt)
 
-    ops['yoff'] = offsets[0]
-    ops['xoff'] = offsets[1]
-    ops['corrXY'] = offsets[2]
+    if 'yoff' not in ops:
+        nframes = ops['nframes']
+        ops['yoff'] = np.zeros((nframes,),np.float32)
+        ops['xoff'] = np.zeros((nframes,),np.float32)
+        ops['corrXY'] = np.zeros((nframes,),np.float32)
+        if ops['nonrigid']:
+            nb = ops['nblocks'][0] * ops['nblocks'][1]
+            ops['yoff1'] = np.zeros((nframes,nb),np.float32)
+            ops['xoff1'] = np.zeros((nframes,nb),np.float32)
+            ops['corrXY1'] = np.zeros((nframes,nb),np.float32)
+
+    ops['yoff'] += offsets[0]
+    ops['xoff'] += offsets[1]
+    ops['corrXY'] += offsets[2]
     if ops['nonrigid']:
-        ops['yoff1'] = offsets[3]
-        ops['xoff1'] = offsets[4]
-        ops['corrXY1'] = offsets[5]
+        ops['yoff1'] += offsets[3]
+        ops['xoff1'] += offsets[4]
+        ops['corrXY1'] += offsets[5]
 
     # compute valid region
     # ignore user-specified bad_frames.npy
     ops['badframes'] = np.zeros((ops['nframes'],), np.bool)
-    if len(ops['data_path']) > 0:
+    if 'data_path' in ops and len(ops['data_path']) > 0:
         badfrfile = os.path.abspath(os.path.join(ops['data_path'][0], 'bad_frames.npy'))
         print('bad frames file path: %s'%badfrfile)
         if os.path.isfile(badfrfile):
@@ -389,8 +415,8 @@ def register_binary(ops, refImg=None):
     # return frames which fall outside range
     ops = compute_crop(ops)
 
-    if 'ops_path' in ops:
-        np.save(ops['ops_path'], ops)
+    if not raw:
+        ops['bidi_corrected'] = True
 
     if 'ops_path' in ops:
         np.save(ops['ops_path'], ops)
