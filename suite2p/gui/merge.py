@@ -18,7 +18,7 @@ def distance_matrix(parent, ilist):
                 idist[ij,ik] = (((parent.stat[j]['ypix'][np.newaxis,:] -
                                   parent.stat[k]['ypix'][:,np.newaxis])**2 +
                                  (parent.stat[j]['xpix'][np.newaxis,:] -
-                                  parent.stat[k]['xpix'][:,np.newaxis])**2) ** 0.5).min()
+                                  parent.stat[k]['xpix'][:,np.newaxis])**2) ** 0.5).mean()
     return idist
 
 def do_merge(parent):
@@ -89,6 +89,8 @@ def merge_activity_masks(parent):
 
     ### compute statistics of merges
     stat0["imerge"] = merged_cells
+    if 'iplane' in parent.stat[merged_cells[0]]:
+        stat0['iplane'] = parent.stat[merged_cells[0]]['iplane']
     stat0["ypix"] = ypix
     stat0["xpix"] = xpix
     stat0["lam"] = lam / lam.sum() * merged_cells.size

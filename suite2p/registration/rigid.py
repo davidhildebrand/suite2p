@@ -135,13 +135,13 @@ def phasecorr(data, refAndMasks, ops):
     nimg, Ly, Lx = data.shape
 
     # maximum registration shift allowed
-    maxregshift = np.round(ops['maxregshift'] *np.maximum(Ly, Lx))
+    maxregshift = np.round(ops['maxregshift'] * np.minimum(Ly, Lx))
     lcorr = int(np.minimum(maxregshift, np.floor(np.minimum(Ly,Lx)/2.)))
 
     # preprocessing for 1P recordings
     if ops['1Preg']:
         #data = data.copy().astype(np.float32)
-        X = one_photon_preprocess(data.copy().astype(np.float32), ops).astype(np.int16)
+        X = utils.one_photon_preprocess(data.copy().astype(np.float32), ops).astype(np.int16)
 
     ymax, xmax, cmax = phasecorr_cpu(data, refAndMasks, lcorr, ops['smooth_sigma_time'])
 
